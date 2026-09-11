@@ -2,8 +2,7 @@
 
 Install and run the Earnie customer CLI on macOS, Linux, or Windows. This
 repository contains release artifacts, the checksum-verifying installer, and
-verification guidance. It does not contain the Earnie monorepo source or source
-archives.
+verification guidance. 
 
 ## Install
 
