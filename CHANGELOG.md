@@ -6,6 +6,104 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-30
+
+### Added
+
+- The generated project models include the bulk import of a connection's
+  repositories. No CLI command uses them yet, so no CLI release is required.
+
+- Model inventory responses include source-discovered model findings alongside
+  uploaded assets, with optional current triage state/version and matched model
+  license. Scan file listings include model paths without counting them as OSS
+  matches. Existing CLI requests remain compatible; no CLI release is required
+  for these server-side projections.
+
+- The generated API models accept a per-scan Git LFS model-download choice
+  for Git submissions, repository import/connect, and reruns. Existing CLI
+  requests remain compatible; no CLI release is required for the server fix.
+
+- The generated `Project` model carries the bound repository's provider and
+  connection. No CLI command reads them yet, so no CLI release is required.
+
+- The generated client models for findings and component rows carry an
+  optional `remediation` assessment. No CLI command renders it yet, so the
+  CLI does not need a new release for it.
+
+### Changed
+
+- Trusted default-head scans retain their results for pull-request baseline
+  inheritance without being labelled as push events. Historical scans without
+  retained results still fall back to full scanning. No CLI release is required.
+
+- Server-side crypto normalization preserves malformed padding-as-mode evidence
+  without exposing it as a cipher mode; policy fields now offer JCA PKCS1Padding.
+  No CLI binary release is required.
+
+- Project posture now includes the first completed full default-head repository
+  scan, without requiring a later push. This is a server-side correction;
+  existing CLI requests remain compatible and no new CLI release is required.
+
+- The container image builds from Go 1.25.14 and Alpine 3.22 base images
+  pinned by digest, so a rebuild of the same release uses the same bases.
+- `earnie export --bom-format spdx` with the crypto or ai section writes an
+  SPDX file whose document comment counts the cryptographic assets and AI
+  models it leaves out. SPDX 2.3 cannot describe them; export CycloneDX to
+  get them. The server makes this change, so it needs no new CLI.
+- A policy that reads a vulnerability's CWE classification is reported as not
+  evaluated, with `cwe` as the missing enrichment, instead of passed. The
+  server receives no CWE data yet, so the pass meant nothing. Missing
+  evidence fails the gate, for a `warn` policy too. `earnie scan` exits
+  with `evaluation_error`, `earnie mcp review` shows `Gate: error`, and the
+  pre-commit hook reports the Self-check as failed, which blocks the commit
+  when the hook is fail-closed. Detach the policy from the Project to clear
+  it. Every CLI version behaves this way, because the server decides it.
+
+- A Self-check whose upload stopped, for example when a hook timed out or
+  was interrupted, reads `failed` once the server cancels it after an hour
+  idle. It read `running` until it was purged 30 days later, and a
+  `status=failed` listing never found it. This is a server-side correction;
+  no CLI release is required for it.
+
+### Fixed
+
+- `earnie scan staged` and the pre-commit hook run the Self-check again.
+  Since 0.2.0 they waited for the upload through the Scan read, which never
+  serves a Self-check. The hook reported "scan status returned HTTP 404" and
+  allowed every commit without checking it. They now wait on the ingest
+  cursor. Install this release to get the fix: the server did not change.
+- `earnie scan path`, `scan staged` and `scan diff` skip symlinks,
+  submodules and special files such as sockets instead of refusing the whole
+  source, so repositories like kubernetes and django scan, and a pre-commit
+  hook no longer skips its Self-check on a commit that touches a symlink. A
+  link is never followed: its target inside the tree is scanned at its own
+  path, and nothing outside the scanned path is read. A file replaced by a
+  link counts as deleted. A scan path that is itself a symlink is still
+  refused.
+- An error names its cause in the text output, the JSON `message` and the
+  pre-commit hook notice. `collect the source set [source_unavailable]` now
+  says which file failed and why, and `check server compatibility` says why
+  the server could not be reached. A flag error no longer repeats itself.
+- `earnie scan staged --format hook --scanners <list>` runs the scanners it
+  names. The hook accepted `--scanners` and ran every scanner the
+  organization enabled. The hook `earnie hook install` writes passes no
+  `--scanners`, so it is unchanged. Customers get this fix from a new CLI
+  release.
+- The pre-commit hook and `earnie scan staged` report the files their
+  Self-check reviewed and the scanners it did not run. They showed
+  `Files: 0 submitted, 0 included` and no `Scanners not run` line, and
+  `scan staged --json` reported `files_total: 0`. A policy whose scanner did
+  not run on such a Self-check is reported as not evaluated instead of
+  passing with no findings to read, as it already was for `earnie mcp review`.
+  The server makes this change, so it needs no new CLI.
+- A pre-commit hook or `earnie scan staged` Self-check completes on a
+  deployment that cannot run a scanner the organization enabled. It runs the
+  scanners the deployment has and reports the missing one as unavailable, as
+  `earnie mcp review` does. It failed with `the Self-check failed: requested
+  scanner is not configured`, so a fail-closed hook blocked every commit.
+  `--scanners` naming a scanner the deployment cannot run is refused with
+  `module_disabled`. The server makes this change, so it needs no new CLI.
+
 ## [0.2.1] - 2026-09-26
 
 ### Added
