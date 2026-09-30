@@ -1,9 +1,5 @@
 # Earnie CLI releases
 
-This repository distributes signed customer CLI releases for Earnie. The
-commercial source remains in the private Earnie monorepo and is not mirrored
-here.
-
 ## Install
 
 With Homebrew:
