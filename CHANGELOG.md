@@ -6,6 +6,53 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-01
+
+### Added
+
+- `earnie scan path` and `earnie scan diff` send the GitHub Actions or GitLab
+  CI pipeline they run in, and a GitHub Action and a GitLab CI template run
+  them. A pipeline the CLI cannot read now fails with exit 8.
+- The generated findings list parameters carry an optional `scan_only` filter,
+  which narrows a pull request scan's findings to the ones it introduced. No
+  CLI command sends it yet, so no CLI release is required.
+- The generated scans models include the upload limits the api reports from
+  `GET /v1/scans/upload-limits`. No CLI command reads them yet, so no CLI
+  release is required.
+
+### Changed
+
+- A server error (5xx) no longer carries the server's internal error text.
+  The CLI prints a fixed message with the request ID instead, for example
+  `Internal Server Error. Quote request ID <id> when you report this.`, and
+  the cause is in the API log under that ID. The error `code` is unchanged.
+  Three errors keep a fixed hint instead: a repository that could not be
+  fetched, a scanner worker that is not running, and models that are not
+  available on the deployment.
+  No CLI release is required: the CLI already prints the message it gets.
+- The generated project models accept an optional `connection_id` on
+  repository import and connect, so two hosts can each bind a repository at
+  the same path. Resolving a project by `--repository` answers
+  `ambiguous_project` when that path is bound on two hosts; select the project
+  instead. Existing CLI requests remain compatible; no CLI release is required.
+
+### Fixed
+
+- `earnie scan staged` and `earnie scan diff` with nothing to check exit 0 and
+  say so. They print `nothing to check:` and the reason on standard error, and
+  under `--format json` they print one document whose `gate` is `none` and
+  whose `wait.outcome` is `nothing_to_check`. An empty diff used to exit 8 with
+  `source_unavailable`, and an empty staged scan printed nothing at all. No
+  request reaches the API in either case.
+- A scan that did not select a scanner, such as an OSS-only scan on a project
+  with an AI policy attached, no longer reports the gate as `error` with
+  `missing_evidence`. A policy that reads only a scanner the scan left out
+  reports the new verdict `not_applicable` and does not decide the gate, so
+  `earnie scan` and `earnie verdict` exit on the policies that did apply. A
+  scanner the scan selected that fails still exits 3. The fix is on the
+  server, and the CLI passes the verdict through unchanged, so no CLI release
+  is required.
+
 ## [0.2.2] - 2026-09-30
 
 ### Added

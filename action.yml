@@ -1,0 +1,42 @@
+name: Earnie scan
+description: Scan the checked-out code with Earnie; the job fails when the gate blocks.
+branding:
+  icon: shield
+  color: blue
+inputs:
+  api-key:
+    description: Earnie API key, from a repository secret.
+    required: true
+  api-url:
+    description: Your Earnie URL.
+    required: true
+  project:
+    description: Earnie Project UUID or slug; defaults to the one named by the git remote.
+    required: false
+    default: ""
+  args:
+    description: Arguments to earnie scan.
+    required: false
+    default: path .
+runs:
+  using: composite
+  steps:
+    - name: Install the Earnie CLI
+      shell: bash
+      env:
+        EARNIE_VERSION: "0.2.3"
+        EARNIE_INSTALL_DIR: ${{ runner.temp }}/earnie-bin
+      run: |
+        curl -fsSL "https://github.com/scanoss/earnie-cli/releases/download/v${EARNIE_VERSION}/install.sh" | sh
+        echo "$EARNIE_INSTALL_DIR" >> "$GITHUB_PATH"
+    - name: Run earnie scan
+      shell: bash
+      env:
+        EARNIE_API_KEY: ${{ inputs.api-key }}
+        EARNIE_API_URL: ${{ inputs.api-url }}
+        EARNIE_PROJECT: ${{ inputs.project }}
+        EARNIE_SCAN_ARGS: ${{ inputs.args }}
+      run: |
+        set -f
+        # shellcheck disable=SC2086
+        earnie scan $EARNIE_SCAN_ARGS

@@ -1,0 +1,25 @@
+spec:
+  inputs:
+    stage:
+      default: test
+      description: Stage the scan job runs in.
+    args:
+      default: path .
+      description: Arguments to earnie scan.
+---
+# EARNIE_API_KEY and EARNIE_API_URL come from the project's CI/CD variables;
+# EARNIE_PROJECT is needed on a self-managed GitLab.
+earnie-scan:
+  stage: $[[ inputs.stage ]]
+  image:
+    name: ghcr.io/scanoss/earnie-cli:0.2.3
+    entrypoint: [""]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+  script:
+    # The image runs as its own user; the runner's checkout belongs to another.
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - earnie scan $[[ inputs.args ]]

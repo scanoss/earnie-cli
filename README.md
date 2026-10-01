@@ -30,6 +30,33 @@ docker run --rm ghcr.io/scanoss/earnie-cli:X.Y.Z version
 
 Every release also includes cosign bundles for its archives and checksum file.
 
+## Run in a pipeline
+
+In GitHub Actions, check out the code and run the action; the job fails when
+the gate blocks:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    ref: ${{ github.event.pull_request.head.sha || github.sha }}
+- uses: scanoss/earnie-cli@vX.Y.Z
+  with:
+    api-key: ${{ secrets.EARNIE_API_KEY }}
+    api-url: https://earnie.example.com
+```
+
+In GitLab CI, set `EARNIE_API_KEY` (masked) and `EARNIE_API_URL` as CI/CD
+variables and include the template; on a self-managed GitLab also set
+`EARNIE_PROJECT`:
+
+```yaml
+include:
+  - remote: https://raw.githubusercontent.com/scanoss/earnie-cli/vX.Y.Z/gitlab/earnie-scan.yml
+```
+
+The CLI reads the pull or merge request from the pipeline. Both accept `args`
+for `earnie scan`.
+
 ## Verify a downloaded archive
 
 Download the archive, `checksums.txt`, `checksums.txt.bundle`, and the archive's
