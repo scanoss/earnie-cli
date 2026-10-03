@@ -12,7 +12,7 @@ spec:
 earnie-scan:
   stage: $[[ inputs.stage ]]
   image:
-    name: ghcr.io/scanoss/earnie-cli:0.2.3
+    name: ghcr.io/scanoss/earnie-cli:0.3.0
     entrypoint: [""]
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

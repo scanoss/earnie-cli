@@ -24,7 +24,7 @@ runs:
     - name: Install the Earnie CLI
       shell: bash
       env:
-        EARNIE_VERSION: "0.2.3"
+        EARNIE_VERSION: "0.3.0"
         EARNIE_INSTALL_DIR: ${{ runner.temp }}/earnie-bin
       run: |
         curl -fsSL "https://github.com/scanoss/earnie-cli/releases/download/v${EARNIE_VERSION}/install.sh" | sh

@@ -57,6 +57,28 @@ include:
 The CLI reads the pull or merge request from the pipeline. Both accept `args`
 for `earnie scan`.
 
+## Exit codes
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | Success, or gate `pass`, `warn` or `none` |
+| 1 | Gate `block` |
+| 2 | Gate `require` (approval needed) |
+| 3 | Scan, review, evaluation or gate failed, or an unclassified failure |
+| 4 | Authentication failed |
+| 5 | Authorization failed |
+| 6 | Network failure |
+| 7 | Timeout |
+| 8 | Usage or configuration error, including a missing or conflicting flag |
+| 9 | `earnie mcp doctor` or `earnie mcp setup --check` found a problem |
+| 130 | Interrupted |
+
+`earnie scan`, `earnie verdict` and `earnie mcp review` exit from the gate with
+0, 1 or 2. Set `EARNIE_SKIP_REVIEW` to `1`, `true`, `yes` or `on` to skip
+`earnie mcp review` and the review hooks; `0`, `false`, `no` or an empty value
+does not skip. Coding-agent hook adapters never exit 2 on their own errors,
+because Claude Code and Cursor read a hook's exit 2 as "block".
+
 ## Verify a downloaded archive
 
 Download the archive, `checksums.txt`, `checksums.txt.bundle`, and the archive's

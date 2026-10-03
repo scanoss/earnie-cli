@@ -6,6 +6,96 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-03
+
+### Added
+
+- `earnie mcp setup` (and `--hooks`) now installs a session-start hook for
+  Claude Code, Cursor and Codex that refreshes the Earnie policy block in
+  `AGENTS.md`, `CLAUDE.md` or `.cursor/rules/earnie.mdc`. It replaces only what
+  lies between the `<!-- earnie:policies:start ... -->` and
+  `<!-- earnie:policies:end -->` markers, does nothing when the server's set
+  revision equals the block's, never creates a block setup did not write, and
+  never fails a session: an unreachable server adds at most about three
+  seconds, and a timeout or a missing key leaves the file untouched and logs
+  to stderr. Claude Code and Codex run it on `startup` and `resume` only;
+  Cursor has no matcher. Edits made inside the managed block are overwritten
+  the next time the revision changes, and edits to the markers themselves stop
+  the refresh. `earnie mcp doctor` reports hooks that predate it
+  (`policy_refresh` in `--json`), and `earnie mcp uninstall` removes it with
+  the other hooks. Rerun `earnie mcp setup --hooks` to add it to an existing
+  checkout.
+
+- `earnie export --fresh` always generates a new SBOM snapshot.
+
+- The generated triage models carry new optional crypto evidence fields: per
+  call-chain frame `library` (module, version, purl), `entry_resolution` and
+  `entry_declared_type`; per chain `dependency_path` and `root_kind`; the
+  `call_paths_total` / `call_paths_kept` route counts; the `route_evidence`
+  tier (`direct`, `dispatch`, `name_only`) and `no_callers_only` flag;
+  `dependency_provenance` (the dependency's `direct` or `transitive`
+  relationship and declared path, each step marked `without_source` when it
+  was scanned without source); and the `unresolved_dispatch` and
+  `dependency_without_source` unknown reasons. No CLI command renders them yet.
+
+### Changed
+
+- **Behaviour change for CI scripts:** `earnie mcp doctor` and
+  `earnie mcp setup --check` now exit 9, not 2, when they find a problem. 2 is
+  the gate Require code. A script that treated doctor's exit 2 as "problems
+  found" must test for 9. Exit 0 (healthy) is unchanged.
+
+- **Behaviour change for CI scripts:** `earnie mcp review` now exits from the
+  review's gate like `scan` and `verdict`: 1 for Block, 2 for Require, 0 for
+  Pass, Warn and None, and 3 (fail closed) when the review did not complete,
+  for example because it is still running, or its gate is an error or unknown.
+  It used to exit 0 whatever the gate said, so a CI step could not fail on a
+  blocked review.
+
+- `earnie export` no longer generates a new SBOM snapshot on every run. It
+  downloads the scan's latest snapshot that has the requested `--bom-format`
+  and the sections you named with `--include`, or, without `--include`, the
+  default sections the server reports for your key and plan, so a crypto-only
+  or AI-only snapshot is never returned in place of the default export. It
+  generates one only when none matches, when the server does not report its
+  default sections, or when the project's review state changed since the
+  latest snapshot (stale), saying so on stderr; `--quiet` silences the note.
+
+- Server: crypto findings in a project whose dependencies do not resolve (no
+  lockfile or build file) now read `reachable` or `unreachable` instead of
+  `unknown`, because the scan traces the project's own source. A policy on
+  reachable crypto can therefore start to fire on such a project, and
+  `earnie scan` reports it.
+
+### Fixed
+
+- `EARNIE_SKIP_REVIEW` is read as a boolean. `1`, `true`, `yes` and `on` skip the
+  review; `0`, `false`, `no` and an empty value no longer do. Any non-empty
+  value used to skip, so `EARNIE_SKIP_REVIEW=0` silently disabled the review.
+
+- Usage errors now exit 8, as documented, instead of 3: `earnie mcp review`
+  without exactly one selector, `earnie scan diff` without `--base`, an unknown
+  or duplicate `--client`, `--global` with `--project`, `--check` with
+  `--dry-run`, `--hooks` and `--no-hooks` together, a missing API URL in
+  `mcp setup` and `mcp doctor`, and unreadable `mcp hook` input or a missing
+  `--client`. Hook adapters stay clear of exit 2, which Claude Code and Cursor
+  read as "block", so their input errors cannot block an agent.
+
+- `earnie export` on a project whose latest scan finished before SBOM evidence
+  was kept now fails with the error code `scan_evidence_unavailable` and a
+  message telling you to run a new scan. The server used to answer HTTP 500,
+  which the CLI reported as a retryable `api_unavailable`, so a retry could
+  never succeed.
+
+- Server: SBOM documents from `earnie export` and the `earnie_export_bom` tool
+  keep the licence the scan detected next to a concluded one: a `declared`
+  entry beside the `concluded` one in CycloneDX, and `licenseDeclared` in SPDX
+  (it read `NOASSERTION`).
+
+- Server: SBOM documents name Earnie and the server build as the generating
+  tool (`earnie` and its version). They named the SBOM library (`scanoss`,
+  version `dev`).
+
 ## [0.2.3] - 2026-10-01
 
 ### Added
