@@ -6,6 +6,76 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-07
+
+### Added
+
+- `install.sh` verifies the cosign signature of `checksums.txt` against the
+  release's `checksums.txt.bundle` when `cosign` is on your `PATH`, and refuses
+  to install when the signature is bad. Without `cosign` it prints one line
+  saying signature verification was skipped, with the exact `cosign
+  verify-blob` command to run. The SHA-256 check stays.
+- The generated `earnieclient` models gain fields the CLI does not read, so its
+  behaviour is unchanged: `advisory_gate` on the scan publication block
+  (whether a blocking verdict can stop the change request's merge);
+  `project_count` on a bulk import batch, with an optional `batch` filter on the
+  estate reads `projects:posture` and `crypto/posture`; `projects_updating` on
+  the estate crypto posture, `updating` and `as_of` on each of its projects,
+  and `weak_crypto_updating` and `weak_crypto_as_of` on the project posture
+  row, for numbers still being recalculated.
+
+### Changed
+
+- The findings of a scan, which the scan commands read, now include crypto,
+  dependency and AI findings on files the OSS scan skips by default (HTML,
+  Markdown, YAML). Before, they were left out of the count. No CLI change is
+  needed to get this; the server returns them.
+- `earnie scan staged` run by hand now records its run as a `CLI self-check`
+  instead of `Pre-commit hook`. Only the installed hook (`--format hook`)
+  reports the pre-commit producer. Every other `earnie scan` run now declares
+  the `cli` producer, so a raw REST call with an API key reads `API` while the
+  CLI still reads `CLI`. Scans from CLI 0.3.0 and earlier keep the `CLI` label:
+  the server treats an API-key submission that declares no producer and names
+  its archive exactly `cli` as a CLI scan. Any other undeclared API-key
+  submission reads `API`.
+- The compatibility check that starts every command, including `earnie scan
+  wait`, now retries network errors and 5xx answers with the polling budget (8
+  attempts, 1 second doubling to a 30 second cap) instead of failing at once
+  during an outage. An incompatible CLI or a 4xx answer still fails at once.
+  The `earnie scan` and `earnie scan wait` help names the budget.
+- Self-checks and scans from `earnie scan` are named after the branch and
+  short commit (`feat/payments@4f9c2a1`), or the first file and how many more,
+  instead of `cli`.
+- `earnie export` documents now name the project they describe. The CycloneDX
+  root component carries the project name, a slug-based `bom-ref` and the
+  scan's commit as its version (omitted for an uploaded archive), and the SPDX
+  document is titled after the project instead of `earnie-project`. The server
+  generates the document, so no CLI update is needed.
+- CycloneDX documents carry a `compositions` entry with aggregate `unknown`,
+  stating that the dependency graph is not included, and an SPDX document's
+  `documentNamespace` is unique per snapshot. The CLI downloads these
+  documents as they are.
+- The snapshot format enum gains `report-html`, `report-csv`, `report-xlsx`
+  and `report-pdf`. Older CLIs list such artifacts without error.
+- The `earnieclient` models change in ways the CLI does not read, so its
+  behaviour is unchanged. The project posture row has `scan_in_progress`, true
+  while the project has a scan that has not finished, and `high_cves`, which
+  counts critical plus high CVEs the way the project dashboard does. The
+  posture gate gains the value `require` (a project with findings awaiting
+  approval) and the attention condition `approval_required`; the attention
+  condition constants are now prefixed `AttentionCondition`. `weak_crypto` on
+  the posture row is the same number as the project's crypto card (dependency
+  crypto in a dismissed dependency no longer counts, and a project scanned
+  clean reports 0 instead of null). `review_coverage` on an SBOM snapshot is
+  the share of the scan's findings that need a decision and have one, the same
+  figure as the Review header, and `component_count` is the components included
+  in the snapshot. The project summary model no longer has `crypto` or
+  `last_crypto_scan_at`; they are on the new project crypto summary model. The
+  bulk-resolve and bulk-resolve preview descriptions now say they select open
+  or reopened findings.
+- Dependency updates: `bubbletea` 2.0.9, `huh` 2.0.3, `go-toml` 2.4.3,
+  `go-keyring` 0.2.8 and `oapi-codegen/runtime` 1.7.0.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added

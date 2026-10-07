@@ -40,6 +40,26 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 curl -fsSL "${download_base}/${archive}" -o "${tmp}/${archive}"
 curl -fsSL "${download_base}/checksums.txt" -o "${tmp}/checksums.txt"
 
+cosign_identity='^https://github\.com/scanoss/earnie/\.github/workflows/release-cli\.yml@refs/tags/cli/v'
+cosign_issuer='https://token.actions.githubusercontent.com'
+if command -v cosign >/dev/null 2>&1; then
+  if ! curl -fsSL "${download_base}/checksums.txt.bundle" -o "${tmp}/checksums.txt.bundle"; then
+    echo "Could not download checksums.txt.bundle to verify the release signature" >&2
+    exit 1
+  fi
+  if ! cosign verify-blob \
+    --bundle "${tmp}/checksums.txt.bundle" \
+    --certificate-identity-regexp "$cosign_identity" \
+    --certificate-oidc-issuer "$cosign_issuer" \
+    "${tmp}/checksums.txt" >/dev/null 2>&1; then
+    echo "checksums.txt signature verification failed (an older cosign may need upgrading to read this bundle)" >&2
+    exit 1
+  fi
+  echo "Verified the cosign signature of checksums.txt"
+else
+  echo "Signature verification skipped: cosign not found. To verify, download checksums.txt and checksums.txt.bundle from the release and run: cosign verify-blob --bundle checksums.txt.bundle --certificate-identity-regexp '${cosign_identity}' --certificate-oidc-issuer ${cosign_issuer} checksums.txt"
+fi
+
 expected="$(awk -v name="$archive" '$2 == name { print $1 }' "${tmp}/checksums.txt")"
 if [ -z "$expected" ]; then
   echo "No checksum found for ${archive}" >&2

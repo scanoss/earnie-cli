@@ -21,6 +21,10 @@ curl -fsSL https://github.com/scanoss/earnie-cli/releases/latest/download/instal
 The installer supports Linux and macOS on amd64 and arm64. It downloads the
 release checksum list, verifies the selected archive, and installs to
 `$HOME/.local/bin` unless `EARNIE_INSTALL_DIR` names another writable directory.
+When `cosign` is on your `PATH`, it also verifies the signature of the checksum
+list against the release's `checksums.txt.bundle` and stops if the signature is
+bad. Without `cosign` it prints that signature verification was skipped, with
+the command to run it yourself (see "Verify a downloaded archive").
 
 Or run the signed multi-architecture image:
 
