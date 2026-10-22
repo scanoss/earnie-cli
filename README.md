@@ -43,6 +43,7 @@ the gate blocks:
 - uses: actions/checkout@v4
   with:
     ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    fetch-depth: 0
 - uses: scanoss/earnie-cli@vX.Y.Z
   with:
     api-key: ${{ secrets.EARNIE_API_KEY }}
@@ -58,8 +59,42 @@ include:
   - remote: https://raw.githubusercontent.com/scanoss/earnie-cli/vX.Y.Z/gitlab/earnie-scan.yml
 ```
 
-The CLI reads the pull or merge request from the pipeline. Both accept `args`
-for `earnie scan`.
+Both run `earnie scan ci`. In a pull or merge request pipeline it scans the
+changes against the base the pipeline names; in any other pipeline it scans the
+whole tree. `--base <ref>` replaces the base. The diff needs the base commit in
+the clone, so check out with `fetch-depth: 0`; the GitLab template sets
+`GIT_DEPTH: 0` itself. A shallow clone without the base exits 8 with
+`shallow_clone` and names the setting. Outside a CI `earnie scan ci` exits 8;
+use `earnie scan path` or `earnie scan diff --base <ref>` there. Both accept
+`args` for `earnie scan`.
+
+## Scan a model file
+
+```sh
+earnie model scan ./model.safetensors --project my-project
+```
+
+`earnie model scan` uploads one model file to the Project and waits for its AI
+provenance result. It takes weights (`.safetensors`, `.gguf`, `.onnx`, `.bin`,
+`.pt`, `.h5` and other framework formats) or a Hugging Face snapshot archived
+as `.tar`, `.tar.gz` or `.tgz`. The output lists the model's status and one line
+per finding with its status, component, confidence and license. Run the same
+command again after an interrupted upload and it resumes from the bytes the
+server already holds. `--no-wait` returns once the upload is sealed, and
+`--timeout <duration>` bounds the wait; the scan keeps running on the server.
+
+The API key needs `scans:write` and `scans:read` and must include the `ai`
+scanner. Exit codes:
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | The scan finished, whether or not the model matched a known one |
+| 3 | The model scan failed (`model_scan_failed`) |
+| 5 | The key or organization does not have the `ai` scanner |
+| 7 | The wait timed out |
+| 8 | Not a model file, a directory or empty file, or larger than the deployment's model size cap (`model_too_large`) |
+
+Models above the cap cannot be scanned yet.
 
 ## Exit codes
 

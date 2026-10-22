@@ -15,16 +15,16 @@ inputs:
     required: false
     default: ""
   args:
-    description: Arguments to earnie scan.
+    description: Arguments to earnie scan; ci diffs a pull request against its base and scans the whole tree on other events.
     required: false
-    default: path .
+    default: ci
 runs:
   using: composite
   steps:
     - name: Install the Earnie CLI
       shell: bash
       env:
-        EARNIE_VERSION: "0.3.1"
+        EARNIE_VERSION: "0.4.0"
         EARNIE_INSTALL_DIR: ${{ runner.temp }}/earnie-bin
       run: |
         curl -fsSL "https://github.com/scanoss/earnie-cli/releases/download/v${EARNIE_VERSION}/install.sh" | sh

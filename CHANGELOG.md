@@ -6,6 +6,209 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-22
+
+### Added
+
+- `earnie model scan <file>` uploads one AI model file (weights such as
+  `.safetensors`, `.gguf` or `.onnx`, or a Hugging Face snapshot as `.tar`,
+  `.tar.gz` or `.tgz`) to the Project and waits for its AI provenance result,
+  listing each finding with its status, component, confidence and license. The
+  file is sent in 16 MiB windows, and scanning the same file again after an
+  interruption resumes from the bytes the server already holds. `--no-wait`
+  returns once the upload is sealed, and `--timeout` bounds the wait. It exits 0
+  when the model was identified or not matched, 3 with `model_scan_failed` when
+  its scan failed, and 8 with `model_too_large` when the file exceeds the
+  deployment's model size cap (larger models cannot be scanned yet). `--json`
+  prints the report in a new `model` member of the envelope. It needs an API key
+  scoped to the `ai` scanner with `scans:read` and `scans:write`. The generated
+  Go client `pkg/earnieclient` gains the model upload and read operations.
+- The notification kinds `earnie notifications rules create --kind` accepts now
+  include `cra_deadline`, the security reminder that a CRA reporting stage is
+  near, at or past its due time. It is a security kind, so it cannot be turned
+  off and `earnie notifications health` counts a rule for it as a security
+  route.
+- `earnie integrations list [--provider github|gitlab]` lists the GitHub and
+  GitLab connections with their recorded health, the permissions each is missing
+  (with the level needed) and the provider page where an admin grants them.
+  `earnie integrations verify <connection-id>` asks the provider again, records
+  its answer as the connection's health and exits 9 when the connection is
+  degraded or disconnected; when the provider cannot be reached it fails and the
+  recorded health is kept. Both need an API key with `integrations:read` and
+  change no setting. `earnie integrations connect <github|gitlab>` prints the
+  Settings > Integrations link where a person signed in to Earnie connects the
+  provider; it makes no request, because an API key cannot connect a provider.
+  `--json` prints the report. The commands need a server that serves
+  `POST /v1/integrations/connections/{connection_id}:verify`.
+- `earnie doctor` checks the SCANOSS API key before it reads the integrations
+  status: the server calls the SCANOSS API once with its configured key, and the
+  SCANOSS API key entry then says whether the key works, was refused, is rate
+  limited or out of quota, or could not be checked because the SCANOSS API was
+  unreachable. A refused key shows up as a disconnected integration with a link
+  to get a key, so the command exits 9. A server that does not have the check
+  yet, or a key that may not run it, still gets the status as before. The
+  command needs a server that serves `POST /v1/integrations/scanoss-api-key:test`
+  to run the check.
+
+- `earnie doctor` shows one status for every integration the server knows
+  (source-code connections, single sign-on, notification channels, the SCANOSS
+  API key and API keys), each with a link to fix it when it is degraded or
+  disconnected, and runs the checks of `earnie mcp doctor` after it. It reads
+  what the server already recorded and changes nothing. It exits 9 when an
+  integration is degraded or disconnected or an MCP check fails; an integration
+  that was never configured is not a problem. A key without `integrations:read`
+  still gets the MCP checks and the output says the integrations were not
+  checked. An integration whose settings the caller may not read (single
+  sign-on needs `sso:read`, notification channels `organization:read`, API keys
+  `apikeys:read:all`) is left out. `--json` prints `{ok, integrations, mcp}`. The command needs a
+  server that serves `GET /v1/integrations/status`.
+
+- `earnie notifications test <channel>` sends a real test message through a saved
+  notification channel and reports how it ended. `<channel>` is a channel id or the
+  exact name of a channel; a name is looked up in the channel list, so a key that
+  tests by id needs only `notifications:write`. The output names the channel, the
+  outcome and the message that says what to fix, plus the address an email test went
+  to. It exits 0 when the message was sent and exits 3 with
+  `notification_test_failed` and the failure reason when it was not. It never
+  repeats a test on its own, because the message is real. A key without
+  `notifications:write` exits 5, and an unknown channel exits 8 with
+  `channel_not_found`. No flag takes a secret: a secret is set by a person in the
+  web app. The JSON output gains an optional `notification_test` member with the
+  channel, outcome, reason, message and recipient. It needs a server that has the
+  channel test endpoint and a key with `notifications:write`.
+
+- `earnie notifications channels list|create|update|delete` sets up notification
+  channels from a terminal or an agent. A channel is a channel id or an exact name.
+  `channels create` takes `--kind`, `--name`, `--enabled`, the `--email-*` settings
+  and `--webhook-url`. `channels update` sends only the flags you pass. No flag takes
+  a secret: a channel that needs one is saved disabled, and the output says so and
+  prints the web link `<server>/settings/notifications?channel=<id>` where a person
+  enters it. Reads need `organization:read` and changes `notifications:write`. A
+  missing scope exits 5 naming it, an unknown channel exits 8, and writes are never
+  repeated on their own. An API key cannot change where a stored secret is sent:
+  `channels update` that moves it exits 5 with `secret_requires_member`. The JSON output gains the optional `notification_channels`,
+  `notification_channel` and `notification_deleted` members. It needs a server that
+  serves the notification channel routes of the REST API.
+
+- `earnie notifications rules list|create|delete` and `earnie notifications health`
+  finish the setup. `rules create --class <class> [--kind <kind>]... --channel
+  <channel>` routes a class of notification to a channel, and `rules delete
+  <rule-id>` removes a rule. `health` says whether the server holds the
+  notifications key and whether security notifications have a route outside the
+  inbox. Reads need `organization:read` and changes `notifications:write`. An
+  unknown rule exits 8. The JSON output gains the optional `notification_rules`,
+  `notification_rule` and `notification_health` members.
+
+- The bulk-resolve response model gains an optional `needs_decision` count,
+  present only on an `introduced_via` dry run: how many of the selected findings
+  a policy flags. Nothing the CLI sends or prints changes.
+
+- `earnie scan retry <scan-id> --producer crypto|ai` runs a failed scanner again
+  on a scan that completed without it. The scan and the findings of the scanners
+  that finished stay as they are; when the new attempt succeeds, that scanner's
+  findings and the scan's gate update. Asking again while an attempt is in
+  flight opens no second one. Without `--wait` it exits 0 once the attempt is
+  accepted; with `--wait` (and `--timeout`) it waits for the attempt to end and
+  exits like `earnie scan wait`, or exits 3 with `producer_retry_failed` and the
+  failure code when the attempt fails again. A scanner that cannot be retried
+  exits 8 with the server's code, such as `producer_not_failed` or
+  `scan_superseded`. The JSON output gains an optional `retry` member with the
+  producer, whether this call opened the attempt, its outcome and every
+  attempt. It needs a server that has the retry endpoint and a key with
+  `scans:write`.
+
+- A scan read now says whether a failed scanner can be retried: each failed
+  scanner in a scan's `producers` carries `retry_refusal` when a retry would be
+  refused (`scan_not_retryable`, `producer_not_retryable` or `scan_superseded`),
+  and carries none when a person who can run scans may retry it.
+
+- `earnie scan ci` scans what the pipeline checks. In a GitHub pull request or
+  GitLab merge request pipeline it diffs against the base the pipeline names;
+  in any other pipeline it scans the whole tree; outside a CI it exits 8 with
+  `ci_not_detected`. `--base <ref>` replaces the base. A shallow clone without
+  the base exits 8 with `shallow_clone` and names `fetch-depth: 0` or
+  `GIT_DEPTH: 0`.
+
+- Each policy approval in the JSON output of `earnie policy violations` and
+  `earnie policy show` now carries `different_approver_required`: whether the
+  organization setting "Require a different approver" was on when the approval
+  was decided. It is `false` for a pending request and for every decision made
+  before the setting existed.
+- The generated `earnieclient` models gain fields the CLI does not read, so its
+  behaviour is unchanged: `inventory` on the AI usage rollup, and `inventory`,
+  `files_inventory` and `findings_inventory` on the review file queue, and
+  `needs_decision` on a finding, for AI usage findings that need no decision.
+- The generated `earnieclient` models gain `roots` and `dev` on dependency
+  evidence: the root manifests whose lockfile graph holds the package, and
+  whether the project needs it only to develop it. A package only a lockfile
+  names carries no declarations. The CLI does not read `roots` or `dev`, so its
+  behaviour is unchanged. `dependency_count` in a scan or project summary now
+  counts the packages of the lockfile graph when the scan has one.
+- The generated `earnieclient` models gain the GitLab import hook plan
+  (`hooks` on the bulk import preview, `hook_scope` on the bulk import request
+  and batch, and per-repository hook results on the batch). The CLI does not
+  read them, so its behaviour is unchanged.
+- The generated `earnieclient` models gain the `inventory` component state and
+  its `state` filter value, for a component whose declared dependencies need no
+  decision. The CLI does not read them, so its behaviour is unchanged.
+
+- The model finding status gains `declared`: a repository the knowledge base
+  knows whose files were not matched. `earnie` reports it as a model status that
+  is not identified. The generated `earnieclient` models gain the matching
+  `declared` count and `ModelDeclaredDetail`.
+- A Model gains `source` (`upload` or `huggingface`) and `source_ref`, its
+  `weights` gain `none` for a Model that was never uploaded, and the server gains
+  `POST /v1/projects/{projectId}/models/huggingface`, which adds a Model by its
+  Hugging Face id. The generated `earnieclient` models carry them. No CLI command
+  uses them, so its behaviour is unchanged.
+- A declared model finding gains the reason `gated`: Hugging Face hides the file
+  hashes of a gated repository, so none could be looked up. The generated
+  `earnieclient` models carry it. The CLI does not read it.
+- A scan read of a single scan now carries `degraded`, true when the scan
+  completed but one of its scanners failed, and `producers`, the outcome and
+  attempts of each scanner. The generated `earnieclient` models gain both
+  fields, plus `ScanProducerResult` and `ScanProducerAttempt`. The CLI does not
+  read them, so its behaviour is unchanged.
+
+- Each version in a component of `GET /v1/findings/components` now carries its
+  own `total_count` and `decided_count`, its own `vulnerabilities` and a
+  `canonical_purl`, and the generated `earnieclient` models gain those fields on
+  `ComponentVersionRef`. The component's counts are still the sums of its
+  versions. The CLI does not read them, so its behaviour is unchanged.
+
+### Changed
+
+- `earnie export` no longer lists dev dependencies (test runners, build tools and the
+  packages only they pull in, as the lockfile marks them) in the CycloneDX or SPDX document.
+  The server now leaves them out unless the snapshot is generated with
+  `include_dev_dependencies`; the CLI has no flag for it yet, so a CLI export always omits them.
+  A package your code matched in the tree stays. This needs no CLI release: the change is in the server.
+- The SBOM that `earnie export` downloads now carries the dependency graph
+  Earnie stored for the scan: CycloneDX `dependencies` and per-manifest
+  `compositions`, SPDX `DEPENDS_ON` relationships. The change is on the server,
+  so it needs no new CLI release; snapshots made before it keep their old
+  statement that the graph was not assessed.
+
+- The GitHub Action and the GitLab template now run `earnie scan ci` by
+  default instead of `earnie scan path .`, so a pull or merge request scans only
+  its changes. Check out with `fetch-depth: 0` in GitHub Actions; the GitLab
+  template sets `GIT_DEPTH: 0`. Set `args: path .` to keep the old scan.
+
+- On macOS and Windows the CLI now honours `SSL_CERT_FILE` and `SSL_CERT_DIR`
+  over the system keychain. Unset them, or set
+  `GODEBUG=x509sslcertoverrideplatform=0`, to keep using the keychain.
+- The macOS builds now need macOS 13 Ventura or later.
+- Dependency updates: `charm.land/bubbletea/v2` 2.1.0, `golang.org/x/mod`
+  0.42.0, `golang.org/x/sys` 0.49.0 and `golang.org/x/term` 0.47.0. No
+  behaviour change is expected.
+
+### Security
+
+- The CLI is built with Go 1.27.3 instead of 1.25.8, picking up the standard
+  library security fixes since, including `crypto/tls`, `crypto/x509` and
+  `net/http`. 1.27.3 fixes GO-2026-6809 in `crypto/x509`. Building the CLI from
+  source now needs Go 1.27.
+
 ## [0.3.1] - 2026-10-07
 
 ### Added
