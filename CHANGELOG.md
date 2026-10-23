@@ -6,6 +6,48 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-23
+
+### Added
+
+- A webhook notification channel can post a markdown message to chat platforms
+  that take "POST JSON with a message field and an API key header" (Mattermost,
+  Discord, relays and messengers with an API key). `earnie
+  notifications channels create --kind webhook` and `channels update` gain
+  `--webhook-format earnie|message`, `--webhook-field <key>` (the JSON key that
+  holds the markdown, default `text`) and `--webhook-auth-header <name>` (an API
+  key header such as `X-API-Key`; an empty value on `update` removes it). The
+  header value is a secret, so it has no flag: the channel is saved disabled and
+  a person enters it in Settings > Notifications. `channels update` with a
+  webhook flag merges with the stored webhook settings, which needs
+  `organization:read`. `channels list` and the other channel commands report
+  the new `webhook_format`, `webhook_field` and `webhook_auth_header` members.
+  The generated Go client `pkg/earnieclient` gains the new webhook settings.
+- `earnie notifications channels create --kind teams` creates a Microsoft Teams
+  channel, a Workflows webhook ("When a Teams webhook request is received").
+  Like Slack it takes no URL flag: the channel is saved disabled and a person
+  pastes the workflow URL in Settings > Notifications. `channels list` reports
+  such a channel as needing its secret, and `notifications test` reports the new
+  `teams_workflow_unavailable` reason. The generated Go client
+  `pkg/earnieclient` gains the `teams` channel kind.
+
+### Changed
+
+- The server now limits the checks that call a third party to 10 a minute per
+  person or API key: `earnie integrations verify`, `earnie notifications test`
+  and the SCANOSS key check `earnie doctor` runs. A call past the limit comes
+  back as HTTP 429 with the server's message, which the CLI reports as a
+  retryable error. None of these commands repeats the call on its own, and
+  `earnie doctor` goes on to read the last recorded status. The generated Go
+  client `pkg/earnieclient` gains the 429 response on those three operations.
+- The generated Go client `pkg/earnieclient` knows that a GitLab project can be
+  bound with its webhook left for an admin to install: a project carries
+  `repo_webhook_pending_manual` and a bulk import counts such hooks as `manual`.
+  No CLI command changes.
+- The generated Go client `pkg/earnieclient` gains the optional `context` field
+  on oss-diff finding evidence, the label that says why SCANOSS reported a
+  full-file candidate. No command reads it yet.
+
 ## [0.4.0] - 2026-10-22
 
 ### Added
