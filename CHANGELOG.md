@@ -6,6 +6,64 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-28
+
+### Added
+
+- `earnie export` can make everything the New export sheet makes, not only a
+  CycloneDX or SPDX bill of materials. `--preset sbom|cbom|aibom|notice|export-control|report`
+  picks the kind of export. `--bom-format` now also takes `notice` (the
+  attribution text to ship with your product), `export-control` (the
+  cryptography evidence for export classification) and `report-html`,
+  `report-csv`, `report-xlsx` and `report-pdf`. A report takes
+  `--template compliance|executive|operator` and `--sections` (a comma list of
+  `merge_gate`, `vulnerabilities`, `license_obligations`, `cryptography_export`,
+  `ai_provenance` and `quantum_vulnerable_assets`); without them you get the
+  default report. `--package <id>` makes a compliance package and downloads it
+  as one ZIP with its README, and says which of its files were left out and
+  why. `--out` is the same as `--output` and also takes a directory. As before,
+  `--scan` names the scan (default: the newest completed one) and an existing
+  export is reused unless you pass `--fresh`. Without the new flags the command
+  behaves exactly as it did. `--format` stays the output format of the command
+  (human or json); the document's format is `--bom-format`. Making a notice, a
+  report or a package needs `scans:write` unless the export already exists.
+- `earnie export list` lists the exports that exist, newest first: the
+  organization's exports across every Project the API key may read, or one
+  Project's with `--project`. `--latest` keeps each Project's newest, `--kind`
+  filters by sbom, cbom, aibom, notice, export-control, report or package, and
+  `--limit` and `--cursor` page the list, for one Project as for all (the
+  server matches `--kind` by the files an export carries). Against a server that
+  predates the organization list, `--project` falls back to the Project's
+  single list, filtered by the CLI: `--limit` only trims it and `--cursor` is refused.
+  A report is saved as `earnie-<project>-report-<template>-<hash>.<ext>` (`report-default` for the
+  default report), so two reports never overwrite each other. Against a server
+  that is too old for a feature, the command says so instead of a bare not found.
+  An export is reused only when it holds everything a fresh one would: a package
+  without omitted parts and with every part's file, a report of the same
+  template and sections (an every-section report only from one that froze every
+  section). A report whose first every-section ask is refused keeps the
+  cryptography sections when the key can see them. A package download that
+  arrives as a truncated ZIP is a retryable `bundle_truncated` error and no file
+  is written.
+- `earnie packages` lists the compliance packages you can make with
+  `earnie export --package`, with what each one is for and the files it holds.
+- Clear messages for the refusals an export can meet: a package you cannot make,
+  a report section your organization or API key cannot see, a scan without
+  cryptography evidence, and a scan that predates exports.
+- The generated Go client `pkg/earnieclient` gains the organization export
+  list, the package catalog, the render and bundle endpoints, and the report
+  template and sections of a document download.
+
+### Fixed
+
+- `earnie doctor` and `earnie mcp doctor` no longer probe the API with the key
+  of an MCP client configured for a different Earnie URL. They used it whenever
+  one existed, so a valid `EARNIE_API_KEY` was reported as invalid and the
+  integrations check was skipped. A client's own key is still checked when the
+  client targets the same API, and the report names that source.
+- The connect message for an integration reads "they install ... or sign in"
+  and "they paste a GitLab access token" instead of the singular verbs.
+
 ## [0.5.0] - 2026-10-23
 
 ### Added
