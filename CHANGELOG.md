@@ -6,6 +6,135 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-04
+
+### Added
+
+- `earnie check <path>...` checks local files and folders once, in a Git
+  repository or not. It runs a Self-check, so it records no findings and never
+  changes the Project's posture, and it prints everything the scanners found,
+  path by path, even when no policy fired: kind, component, match type and
+  percentage, your lines against the open source lines, licence and CVE count.
+  Then the verdict, the violations with the detections that fired them, the
+  policies not evaluated, the scanners that did not run with their reason, and
+  the Self-check link. `--json` adds a `check` member to the schema version 1
+  envelope. Exits 0, 1 or 2 from the verdict, 3 on failure, 7 on `--timeout`,
+  130 when you interrupt it (Ctrl-C or SIGTERM), 8 on a usage error. A file
+  you name is checked even when the Project's Scan Configuration, a
+  `scanoss.json` or a `.gitignore` would skip it; Earnie's built-in exclusions
+  (folders such as `node_modules` and `vendor`, hidden files and folders such
+  as `.github`, lock files, documentation and data files, model weights, empty
+  files) still apply, and each named file they keep from matching prints as a
+  `Not matched:` line with the reason (`files.named_skipped` in JSON). Files
+  inside a folder you name follow every exclusion. Needs a new CLI release and
+  a server that supports `named_paths`; an older server checks named files
+  like any other.
+- The crypto overview (`GET /v1/projects/{projectId}/cryptography/overview`)
+  carries `attention_totals`: every open, reachable finding a policy gates,
+  counted by verdict before `attention` is cut to 50. The Go client models
+  gain the field. Customers need no CLI change.
+- `pkg/earnieclient` regenerates for the crypto rework. Crypto finding
+  evidence carries each call-chain hop's `Parameters` (argument, resolved
+  value, `Sources` of the value), `Excerpt` or `ExcerptUnavailable`, and the
+  entry hop's `EntryRule`, plus `KeySizeSource`, `ParameterConditions` and
+  `ConditionedValue`. The scans models add `CryptoOverview` (the
+  `GET /v1/projects/{projectId}/cryptography/overview` response: funnel,
+  reached assets by source, attention rows, library rows), and each
+  `CryptoAlgorithmRow` gains `AssetType`, `LibraryKeys`, `Verdict` and
+  `Reached`. Every new field is optional or absent against an older server.
+  No command changes, so no CLI release is needed.
+- The projects posture read (`GET /v1/scans/projects:posture`) gives each
+  row `evidence`: the project's newest SBOM, CBOM and notice file, each with
+  its date, the scan it was made from and whether that is the posture scan,
+  or `null` when there is none. The Go client models gain the fields.
+  Customers need no CLI change.
+- The decision throughput read (`GET /v1/resolutions/throughput`) accepts
+  `projects`, a comma-separated list of up to 500 project ids, as an
+  alternative to `project_id`; the series is summed over the set. In the Go
+  client models `project_id` is now optional. Customers need no CLI change.
+- `earnie export --bom-format openvex` downloads the same vulnerability
+  statements as an OpenVEX v0.2.0 file (`earnie-<project>.openvex.json`), for
+  tools that read OpenVEX (`grype --vex`, `trivy --vex`). Each statement names
+  its products by purl, so the file needs no SBOM beside it, and a CVE with no
+  statement is not in it. Needs a server that supports the format.
+- `earnie export --bom-format cyclonedx-vex` downloads your vulnerability
+  statements as a standalone CycloneDX 1.7 VEX file (`earnie-<project>.vex.cdx.json`),
+  the file scanners such as Trivy read (`trivy --vex`). Each entry points at a
+  component of the same snapshot's CycloneDX SBOM by BOM-Link, so read the two
+  together; a CVE with no statement is not in it. The CRA compliance package
+  now holds the VEX as one of its files. Needs a server that supports the
+  format.
+- `earnie vulnerabilities list --json` gives each row `origins`: the inventory
+  sources that brought the component into the project (`matched_code`,
+  `declared_dependency`, `imported_sbom`, `resolved_dependency`,
+  `enriched_purl`). Against a server without the field, it is `null`.
+- `pkg/earnieclient`: `SelfCheckList` carries `Counts` (`SelfCheckStatusCounts`:
+  `All`, `Running`, `Completed`, `Failed`), the number of Self-checks in each
+  status under the list's other filters. No command changes.
+- `pkg/earnieclient`: the project summary carries `VulnsExcludedByStatement`,
+  the number of CVEs left out of its severity counts because the project
+  stated them not affected or fixed. Against an older server it is 0. No
+  command changes.
+- `pkg/earnieclient` regenerates for the Algorithms and Models lists: the crypto
+  algorithms response and the model list carry `as_of` (the scan the list is as
+  fresh as), and each model finding carries `also_in` (other files of the
+  project that report the same candidate). No command changes.
+- `pkg/earnieclient`: `VulnerabilityList` carries `CountsBySeverity`: for
+  `Critical`, `High`, `Medium`, `Low` and `Unknown`, the rows in each decision
+  status under the list's kev, query, purl and CVE filters. No command changes.
+- `pkg/earnieclient`: each model finding carries `LicenseCategory`
+  (`permissive`, `copyleft`, `use_restricted`, `non_commercial`, `proprietary`
+  or `unknown`), the category of its license, null for a row that is not an
+  identified model. Against an older server it is nil. No command changes.
+- `--include-findings` (on `scan wait`, `scan status` and `verdict`) gives a
+  finding `suggested_resolution` when the server proposes a decision for it,
+  such as `{"reason": "not_a_match", "probability": 0.93}`, and `--details`
+  prints it beside the finding as `(likely not a match, 93%)`. It is a
+  proposal: nothing is decided. Absent when the server proposes nothing or
+  does not send the field.
+
+### Changed
+
+- `earnie scan path <file>` now exits 8 with a message pointing at
+  `earnie check <file>`, instead of failing with `source set is empty`.
+- The Go client (`pkg/earnieclient`) builds against `oapi-codegen/runtime`
+  1.8.0 (was 1.7.0), and the CLI image's Alpine base moves to the latest 3.22
+  digest. No command changes; a release is only needed to ship the refreshed
+  dependency.
+- The interactive CLI builds against `bubbletea` 2.1.1 (was 2.1.0), and the
+  CLI image builds on the current `golang:1.27.3-alpine` digest. No command
+  changes.
+
+### Fixed
+
+- `earnie scan staged` (outside the pre-commit hook) reports its own bound
+  when `--timeout` runs out: `error.code: wait_timeout` and "the Self-check did
+  not finish within <timeout>; it keeps running on the server", as `earnie
+  scan path` does. It used to report `hook_timeout` and "exceeded 60 seconds"
+  whatever `--timeout` was. Exit 7 is unchanged. A script that matched
+  `hook_timeout` for `scan staged` should match `wait_timeout`; the pre-commit
+  hook (`--format hook`) still reports `hook_timeout`.
+- `earnie scan staged` interrupted while it waits for its Self-check (Ctrl-C
+  or SIGTERM) exits 130 with `user_interrupt` and `wait.outcome: interrupted`,
+  as `earnie scan path` does. It used to report a timeout and exit 7, so a
+  wrapper that retries on 7 retried a cancelled run. A fail-closed pre-commit
+  hook interrupted the same way exits 130 instead of 6, and a fail-open one
+  says the wait was interrupted instead of naming the 60-second limit.
+- `earnie export --scan <id>` refuses a scan of another Project with exit 8
+  and `scan_not_in_project`. It used to make the export in that scan's
+  Project, where the next run never found it to reuse, so every export of
+  such a scan generated a new snapshot.
+- `pkg/earnieclient` brings back the `PolicyViolationSeverity` constants
+  `Critical`, `High`, `Medium`, `Low`, `Info` and `None`. 0.6.0 renamed them to
+  `PolicyViolationSeverityCritical` and so on when it added the severity filter
+  of `earnie vulnerabilities list`, which broke Go code that imports the client.
+  The filter's own `GetV1ProjectsProjectIdVulnerabilitiesParamsSeverity`
+  constants stay as they were in 0.6.0. The prefixed
+  `PolicyViolationSeverityCritical`, `PolicyViolationSeverityHigh`,
+  `PolicyViolationSeverityMedium`, `PolicyViolationSeverityLow`,
+  `PolicyViolationSeverityInfo` and `PolicyViolationSeverityNone` that 0.6.0
+  introduced are removed again: code written against them uses the bare names.
+
 ## [0.6.0] - 2026-10-28
 
 ### Added
@@ -53,6 +182,25 @@ its release notes.
 - The generated Go client `pkg/earnieclient` gains the organization export
   list, the package catalog, the render and bundle endpoints, and the report
   template and sections of a document download.
+- `earnie vulnerabilities list` lists the CVEs of the Project's current
+  inventory with the statement made on each: CVE, `component@version`,
+  severity, Known Exploited flag and status (`undecided`, `not_affected`,
+  `affected`, `fixed` or `under_investigation`), plus a counts line per status.
+  Filter with `--status`, `--severity` (repeatable), `--kev`, `--purl`, `--cve`
+  and `--q`, and page with `--limit` and `--cursor`. `--json` prints the rows,
+  the counts and `next_cursor` in a new `vulnerabilities` member of the
+  envelope. It needs an API key with `projects:read` (to resolve the Project)
+  and `findings:read`.
+- `earnie vulnerabilities decide` records or withdraws a vulnerability
+  statement (VEX) on one or more CVEs, all or none. Name them with
+  `--item purl@version#CVE` (repeatable) or `--file items.json`, and give
+  `--status` with `--justification` and `--impact` for `not_affected`,
+  `--action-statement` for `affected`, or `--withdraw`. A request id is
+  generated and printed when `--request-id` is absent; repeating the command
+  with it applies the decision once. A refused request exits 8 with the server's
+  code, such as `justification_required`, `not_in_inventory` or
+  `request_conflict`. `--json` prints a `vulnerability_decision` member. It
+  needs an API key with `projects:read` and `vulnerabilities:decide`.
 
 ### Fixed
 
