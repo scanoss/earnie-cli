@@ -6,6 +6,192 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-20
+
+### Added
+
+- `earnie findings list` and `export` take more filters: `--severity critical,high`, `--facet
+  <path>:<value>` (repeatable; any path the policies read, such as `license.spdx_id`,
+  `crypto.mode` or `ai.vendor`), `--new-in-scan <scan-id>` (only what a pull request scan
+  introduced), `--source direct|dependency` for crypto, and `--full` for the whole evidence.
+  `earnie findings facets` lists the paths and values the findings carry, with counts
+  (`--field`, `--search`, `--limit`), in a `finding_facets` document under `--json`. An
+  unknown facet path names `earnie findings facets`. The generated client gains
+  `GET /v1/findings/facets` and the `facet`, `scan_only` and `evidence_source` filters.
+- `earnie findings list|show|export`: read a Project's findings without the console. `list`
+  pages with `--limit`/`--offset` (`next_offset` in the document) or reads every page with
+  `--all`, filtered by `--state`, `--domain`, `--scan`, `--purl` and `--path`. `show <id>`
+  prints one finding with its evidence fields (`--scan` reads it as a pull request scan saw it).
+  `export --output <file> [--file-format json|csv]` streams every matching finding into a
+  file and replaces it only once complete. Each prints one `finding_list`, `finding` or
+  `finding_export` document under `--json`; `consistent: false` there (and a warning on
+  stderr) means findings changed between pages and some may be missing. Needs `findings:read`.
+- `earnie project list|show|create|update`: script Projects without the console. `list` prints
+  the Projects the key can read (`--include-archived` adds archived ones), `show <id-or-slug>`
+  one Project, `create --name --slug [--description]` a new one and `update <id-or-slug>
+  [--name] [--description]` renames it. Each prints one `project_list` or `project_detail`
+  document under `--json`. `create --if-not-exists` exits 0 with the existing Project
+  (`created: false`) when a live Project has the slug, so a script can run it again; an
+  archived one still exits 8 and says to restore it. A conflict says whether the name or the
+  slug is taken. An unknown slug
+  names the nearest slugs the key can read, on `project show|update` and on any command's
+  `--project` or `EARNIE_PROJECT`. Reading needs `projects:read`, writing `projects:write`. The
+  generated client gains `POST /v1/projects` and `PATCH /v1/projects/{projectId}`.
+- `earnie policy` can now write policies, so a person or a coding agent authors one from the
+  terminal: `fields` (the fields a rule can read, each with `cel_path`, the path to write in an
+  expression, a description and an example; `--domain oss|crypto|ai`; `fields values <path>`
+  searches a field's legal values), `templates` (the built-in templates and regulatory sets),
+  `check <file|->` (every problem a save would meet at once, with the fix; exits 8
+  `policy_check_failed` when a save would be refused), `try <file|->` (what a draft would do on
+  the Project's findings, nothing saved), `create [file|-]` (or `--from-template <slug> --set
+  key=value`; created enabled; `--attach`; sends an `Idempotency-Key` that is printed, reuse it
+  with `--idempotency-key` after a lost response; a repeat reports `already_exists`), `update <file|->` (only the members the file
+  names change, conditional on `revision` from the file or `--revision`) and `delete <id|slug>
+  --revision <r>`. A policy file is YAML or JSON, a path or `-` for standard input. Every command
+  takes `--format json` and the v1 envelope gains `policy_fields`, `policy_field_values`,
+  `policy_templates`, `policy_saved`, `policy_deleted`, `policy_try` and `policy_check`. Nothing
+  prompts unless standard input is a terminal: `delete` without `--yes` and without a terminal
+  exits 8 `confirmation_required`. A refusal names the fix (the nearest field path, the missing
+  `has()` guard, the scope the key lacks). Needs a server with `POST /v1/policies:check` and the
+  `cel_path` member of `GET /v1/policies/fields`; `check` on an older server exits 8
+  `server_too_old`, and `fields` reports `cel_path` null rather than guess one.
+  `earnie policy push` (policy as code from git) is not part of this.
+- `earnie export --bom-format sarif` downloads the Project's findings as a SARIF 2.1.0 log
+  (`earnie-<project>.sarif`), the file GitHub code scanning, GitLab, Azure DevOps and
+  DefectDojo ingest. Each open vulnerability of a component, and each sighting of a
+  quantum-vulnerable cryptographic asset when you add `--include oss,crypto`, is a result
+  located at the file it was found in. The rest of the crypto inventory stays in the CBOM
+  (`--preset cbom`). A finding the scan cannot place in a file is left out and counted in the
+  log, and so is anything past 25,000 results, the most GitHub code scanning accepts in one
+  run: the most severe are kept. Needs a server that supports the format.
+- `earnie export -o` is short for `--output`, and `-o -` writes the document alone to stdout
+  with the command's report (human or `--json`) on stderr, so it can be piped:
+  `earnie export --project billing --bom-format sarif -o - | jq '.runs[0].results | length'`.
+  With `--format json`, stderr then holds the JSON report and nothing else; the report's
+  `stale_regenerated` says when a stale snapshot was replaced. `earnie export --help` shows
+  examples.
+- `earnie vulnerabilities import <file>` imports an OpenVEX 0.2 or CycloneDX 1.4-1.7 VEX
+  document (or a CycloneDX BOM's vulnerability analysis) as statements on the Project.
+  `--dry-run` lists what each entry would do and writes nothing; `--replace-existing`
+  replaces statements that say something else with a new revision. It needs a server with
+  the `:import` endpoint; an older one answers `server_too_old`.
+- The statements `earnie vulnerabilities list` and `decide` print under `--format json` now
+  carry `source` (`decision` or `vex_import`) and, for an import, `source_document`. Against
+  an older server `source` is empty.
+- `earnie check` and the review hook now say when a submitted manifest could not be
+  evaluated (it failed to parse, or no dependency could be read from it, as with a
+  fragment of changed lines). A pass beside such a manifest is not a clearance of it.
+  Older CLI versions keep working; they just do not print the new line.
+
+### Changed
+
+- The generated API client knows the `agent_rule_changed` notification kind. No behaviour
+  change in the CLI.
+- The generated client's import and connect-repository requests gain an optional `ref`, the
+  branch, tag or commit the first scan reads. It is additive and the CLI does not send it yet.
+- The generated client gains `include_transitive_dependencies`: an optional boolean on the
+  SBOM generate request (default true) and a required one on a snapshot, which records whether
+  the export lists the packages only another package pulls in. The CLI has no flag for it yet,
+  so a CLI export keeps listing them. Additive; older versions keep working.
+- The generated client gains `scan_completed` in the notification kind enum. It is a kind
+  of the `policy` class that a rule must name to take effect, so `earnie notifications rules
+  create --kind scan_completed` sends a webhook, Slack or Teams channel one message when a
+  scan completes. The CLI itself does not change.
+- The generated client gains three optional fields on an identified AI model's evidence
+  (`verdict_class`, `calibration_quality_reason` and a `provenance` block naming the host to
+  trust for the weights) and an optional `bias_source` on a model's enrichment. All are
+  additive and the CLI does not use them yet.
+- The generated client gains the crypto migration priority override of ADR 0105: a
+  `migration_override` on a finding read, `GET` and `POST /v1/findings/{findingId}/migration-override`,
+  and an optional `deferred` count on the migration summaries. All are additive and the CLI
+  does not use them yet.
+- The components list (`GET /v1/findings/components`) narrows a component's counts to the
+  selected domains when the request carries a `finding.domain` facet, and the generated
+  client's description of `facet` now says so. The CLI sends no facet there, so its output
+  does not change.
+- Snippet classification is generally available on the server. A scan the CLI submits
+  without an explicit enrichment list now scores its OSS snippet matches too, and the
+  findings the CLI prints carry the score. The CLI itself does not change; older versions
+  keep working.
+- The generated client's description of an SBOM import's default `enrichments` now says
+  `["vulnerabilities","licenses"]`, as the server does. An imported document has no source
+  files, so snippet classification does not run by default. Behaviour is unchanged.
+- The crypto triage verbs `confirm_usage` and `accepted_risk` are retired on the server.
+  Resolving a finding with either now answers `422` with the error code
+  `reason_retired`, and the message names the replacement: a Policy Approval to let a real
+  cryptographic finding through the gate, or `false_positive` (shown as "Wrong detection")
+  when the detection is not cryptography. The `earnie_triage_finding` MCP tool no longer
+  lists them in its `decision` enum. Past resolutions keep both slugs, their labels and
+  their gate effect. The generated client's descriptions of the triage reasons and of the
+  crypto rollup's `triaged.confirmed_usage` and `triaged.accepted_risk` counts, which no
+  longer grow, say so. The CLI itself does not change.
+- The AI triage verbs `confirm_ai_usage`, `approve_ai_usage`, `approve_model` and
+  `reject_model` are retired on the server (ADR 0106). Resolving a finding with one now
+  answers `422` with the error code `reason_retired`, and the message names the
+  replacement: a Policy Approval to let a real AI usage or model through the gate, nothing
+  for a real detection (it stays open), or `not_ai_usage` (shown as "Wrong detection") or
+  `wrong_identification` when the detection is wrong. The `earnie_triage_finding` MCP tool
+  no longer lists them in its `decision` enum. Past resolutions keep the slugs, their
+  labels and their gate effect. The generated client's descriptions of the triage reasons
+  say so. The CLI itself does not change.
+- The generated API client knows the Cryptography overview's post-quantum migration
+  counts (assets per priority `P1`-`P3` and the closest deadline) and the priority of each
+  Needs attention row. No behaviour change in the CLI.
+- `earnie scan path`, `scan diff`, `scan ci` and `scan staged` upload a project's source
+  faster. The CLI reads the upload cursor once to start and once to finish instead of after
+  every batch (for a 50,000-file tree that cursor came to 2.6 GiB, more than the source
+  itself), sends batches of up to 1,024 files and 16 MiB, the window model uploads already
+  use, keeps up to four in flight, and asks again for a keep set the server is still
+  computing after 100 ms instead of a second. Against a server that advertises it, each
+  batch also goes gzip-compressed, about a third of the bytes for code. An older server
+  gets uncompressed batches, and a server that turns a compressed batch away gets the rest
+  uncompressed. Measured against a local API, a 50,000-file tree (716 MiB) now uploads in
+  about 7 s instead of 30 s, with 30 ms per request in about 7 s instead of 78 s, and over
+  a 100 Mbit/s link in about 22 s instead of four minutes. Peak memory is unchanged.
+  Older servers keep working with this CLI; the gzip saving needs a server with this
+  release.
+- The generated API client's descriptions of `include_dev_dependencies` now say that the
+  manifest, as well as the lockfile, marks a dependency as dev. No behaviour change in the CLI.
+- The generated API client knows the `new_vulnerability` notification kind. No behaviour
+  change in the CLI.
+- The generated API client knows the `remediation` enrichment key. No behaviour change in
+  the CLI.
+- The generated API client knows the `hybrid` post-quantum status and the `hybrid` count in
+  post-quantum status rollups. No behaviour change in the CLI.
+- The generated API client knows the post-quantum `migration` summary on crypto algorithm
+  and library rows, and the `migration` path on crypto finding evidence. No behaviour
+  change in the CLI.
+- The generated API client knows the post-quantum migration priority (`P1`-`P3`) on crypto
+  finding evidence and in the migration summaries. No behaviour change in the CLI.
+- The generated API client's finding and component `remediation` has a new shape: an `outcome`, `scored_at`, and for a scored answer the
+  band, what limits it, any hard stop, the advisory findings and the ranked actions. The
+  old `coverage`, `priority`, `action`, `signals` and `confidence` fields are gone. No
+  behaviour change in the CLI.
+
+### Fixed
+
+- Under `--json` (or `--format json`), a command given the wrong number of arguments, such
+  as `earnie scan wait` with no scan id or `earnie scan list extra`, now prints the JSON
+  envelope with `error.code` `invalid_arguments` on stdout and nothing on stderr. It still
+  exits 8. Before, stdout was empty and the error was plain text on stderr. Without
+  `--json` nothing changes. This includes `earnie integrations list|verify|connect` and
+  `earnie hook install`, whose other errors are still plain text on stderr under `--json`.
+- Server side, no new CLI needed: a scan that asks for a scanner the deployment does not
+  provide (AI provenance on a server without the AI scanner, for example) now runs the
+  scanners it can and completes degraded, with the missing scanner recorded as failed. The
+  CLI then exits with the gate's code instead of 3 (`scan_failed`). A scan whose every scanner
+  is unavailable still fails.
+- Server side, no new CLI needed: a scan reads its settings only from the
+  `scanoss.json` (or legacy `settings.json`) at the repository root. A file of
+  that name in a subfolder, such as VS Code's `.vscode/settings.json`, was
+  taken as the scan settings and failed the scan when it held `//` comments.
+
+### Dependencies
+
+- Updated `spf13/pflag` to 1.1.0, `tidwall/sjson` to 1.2.6 and `tidwall/gjson` to 1.20.0.
+  No behaviour change. The server's `go-chi/chi` is already at 5.4.0, past the
+  `middleware.RealIP` advisory (GHSA-3fxj-6jh8-hvhx); the CLI does not use chi.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added
