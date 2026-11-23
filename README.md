@@ -68,6 +68,65 @@ the clone, so check out with `fetch-depth: 0`; the GitLab template sets
 use `earnie scan path` or `earnie scan diff --base <ref>` there. Both accept
 `args` for `earnie scan`.
 
+## Sign in from CI without a stored key
+
+A pipeline can sign in with the identity its CI platform gives the job instead
+of a long-lived `EARNIE_API_KEY` secret. `earnie auth login --oidc` exchanges the
+job's OIDC token for a short-lived Earnie key (15 minutes by default, 60 at
+most) held by a service account, and stores it where `--api-key-stdin` would.
+An Admin sets this up once in Settings > Service accounts: enable CI token
+exchange, then add a trust rule naming the repository and ref (GitHub Actions)
+or project path and ref (GitLab) that may sign in as that service account. The
+key carries the service account's scopes and Projects.
+
+On GitHub Actions, grant the job `id-token: write` and leave `api-key` out; the
+action signs in with OIDC on its own. Set `oidc: "false"` to always use a key,
+or `oidc-audience` when the token's audience is not your Earnie URL:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+steps:
+  - uses: actions/checkout@v4
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      fetch-depth: 0
+  - uses: scanoss/earnie-cli@vX.Y.Z
+    with:
+      api-url: https://earnie.example.com
+```
+
+On GitLab CI, declare an ID token whose `aud` is your Earnie URL and set the
+template's `oidc` input. Without the token the template falls back to
+`EARNIE_API_KEY`:
+
+```yaml
+include:
+  - remote: https://raw.githubusercontent.com/scanoss/earnie-cli/vX.Y.Z/gitlab/earnie-scan.yml
+    inputs:
+      oidc: true
+
+earnie-scan:
+  id_tokens:
+    EARNIE_ID_TOKEN:
+      aud: https://earnie.example.com
+```
+
+From any other CI, or a script, put the ID token in an environment variable and
+name it: `earnie auth login --oidc --oidc-token-env MY_CI_TOKEN`. The token is
+never a flag value. `--oidc-audience` overrides the audience, which defaults to
+the API URL without a trailing slash. Under `--format json` the command prints
+the service account, `key_id`, `expires_at`, `trust_rule_id` and platform, never
+the key.
+
+If a later command meets the expired key, GitHub Actions signs in again once on
+its own. GitLab gives a job one ID token and an exchange uses it up, so run the
+exchange again in a new job or raise the trust rule's token TTL. Failures exit
+4 (the token was refused or already used), 5 (CI token exchange is disabled), 6
+(Earnie or the issuer is unreachable; retry) or 8 (the CI environment or flags
+are wrong), and each message names the fix.
+
 ## Scan a model file
 
 ```sh

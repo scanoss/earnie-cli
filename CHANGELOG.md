@@ -6,6 +6,26 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-23
+
+### Added
+
+- `earnie auth login --oidc` signs a CI job in without a stored key. It exchanges the job's
+  OIDC token (GitHub Actions with `id-token: write`, GitLab CI through an `id_tokens` entry, or
+  any variable named by `--oidc-token-env`) for a short-lived key held by a service account and
+  stores it where `--api-key-stdin` does. `--oidc-audience` overrides the audience, which
+  defaults to the API URL without a trailing slash. `--format json` prints an `oidc_login`
+  document (service account, `key_id`, `expires_at`, `trust_rule_id`, platform), never the key.
+  A refused token exits 4, a disabled exchange 5, an unreachable issuer or a rate limit 6, and
+  a missing token or wrong flag 8, each with the fix in the message. When a later command meets
+  the expired key it says to run `earnie auth login --oidc` again; on GitHub Actions it signs in
+  again once by itself. The generated client gains `POST /v1/auth/token-exchange`. Needs a
+  server with CI token exchange.
+- The GitHub Action signs in with OIDC when `api-key` is empty and the job has
+  `id-token: write` (inputs `oidc` and `oidc-audience`; `api-key` is no longer required). The
+  GitLab template takes an `oidc` input that uses the job's `EARNIE_ID_TOKEN` and falls back to
+  `EARNIE_API_KEY`.
+
 ## [0.8.0] - 2026-11-20
 
 ### Added

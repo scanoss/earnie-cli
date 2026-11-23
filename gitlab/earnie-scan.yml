@@ -6,13 +6,25 @@ spec:
     args:
       default: ci
       description: Arguments to earnie scan; ci diffs a merge request against its base and scans the whole tree in other pipelines.
+    oidc:
+      type: boolean
+      default: false
+      description: Sign in with the job's ID token (earnie auth login --oidc) when EARNIE_ID_TOKEN is set; otherwise use the EARNIE_API_KEY variable. The job needs the id_tokens entry shown below.
 ---
 # EARNIE_API_KEY and EARNIE_API_URL come from the project's CI/CD variables;
 # EARNIE_PROJECT is needed on a self-managed GitLab.
+#
+# To sign in with GitLab's ID token instead of a stored key, set the oidc input
+# and add this to your pipeline, with aud set to your Earnie URL:
+#
+#   earnie-scan:
+#     id_tokens:
+#       EARNIE_ID_TOKEN:
+#         aud: https://earnie.example.com
 earnie-scan:
   stage: $[[ inputs.stage ]]
   image:
-    name: ghcr.io/scanoss/earnie-cli:0.8.0
+    name: ghcr.io/scanoss/earnie-cli:0.9.0
     entrypoint: [""]
   # earnie scan ci diffs against the merge request's base, which a shallow
   # clone may not hold.
@@ -26,4 +38,15 @@ earnie-scan:
   script:
     # The image runs as its own user; the runner's checkout belongs to another.
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - |
+      if [ "$[[ inputs.oidc ]]" = "true" ]; then
+        if [ -n "$EARNIE_ID_TOKEN" ]; then
+          unset EARNIE_API_KEY
+          earnie auth login --oidc
+        elif [ -n "$EARNIE_API_KEY" ]; then
+          echo "EARNIE_ID_TOKEN is not set; using the EARNIE_API_KEY variable. Add id_tokens to the job to sign in with OIDC." >&2
+        else
+          earnie auth login --oidc
+        fi
+      fi
     - earnie scan $[[ inputs.args ]]

@@ -5,8 +5,17 @@ branding:
   color: blue
 inputs:
   api-key:
-    description: Earnie API key, from a repository secret.
-    required: true
+    description: "Earnie API key, from a repository secret. Leave it empty to sign in with the job's OIDC token instead (needs the job permission id-token: write)."
+    required: false
+    default: ""
+  oidc:
+    description: "Sign in with the job's GitHub OIDC token (earnie auth login --oidc) instead of an API key. auto does so when api-key is empty and the job can request an OIDC token."
+    required: false
+    default: auto
+  oidc-audience:
+    description: Audience of the OIDC token; defaults to api-url without a trailing slash.
+    required: false
+    default: ""
   api-url:
     description: Your Earnie URL.
     required: true
@@ -24,7 +33,7 @@ runs:
     - name: Install the Earnie CLI
       shell: bash
       env:
-        EARNIE_VERSION: "0.8.0"
+        EARNIE_VERSION: "0.9.0"
         EARNIE_INSTALL_DIR: ${{ runner.temp }}/earnie-bin
       run: |
         curl -fsSL "https://github.com/scanoss/earnie-cli/releases/download/v${EARNIE_VERSION}/install.sh" | sh
@@ -36,7 +45,29 @@ runs:
         EARNIE_API_URL: ${{ inputs.api-url }}
         EARNIE_PROJECT: ${{ inputs.project }}
         EARNIE_SCAN_ARGS: ${{ inputs.args }}
+        EARNIE_OIDC: ${{ inputs.oidc }}
+        EARNIE_OIDC_AUDIENCE: ${{ inputs.oidc-audience }}
       run: |
         set -f
+        case "$EARNIE_OIDC" in
+          true) use_oidc=1 ;;
+          false) use_oidc=0 ;;
+          auto)
+            use_oidc=0
+            if [ -z "$EARNIE_API_KEY" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then use_oidc=1; fi
+            ;;
+          *) echo "oidc must be auto, true or false" >&2; exit 8 ;;
+        esac
+        if [ "$use_oidc" = 1 ]; then
+          unset EARNIE_API_KEY
+          if [ -n "$EARNIE_OIDC_AUDIENCE" ]; then
+            earnie auth login --oidc --oidc-audience "$EARNIE_OIDC_AUDIENCE"
+          else
+            earnie auth login --oidc
+          fi
+        elif [ -z "$EARNIE_API_KEY" ]; then
+          echo "Set api-key to a repository secret, or grant the job \`permissions: id-token: write\` to sign in with OIDC." >&2
+          exit 8
+        fi
         # shellcheck disable=SC2086
         earnie scan $EARNIE_SCAN_ARGS
