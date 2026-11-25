@@ -24,7 +24,7 @@ spec:
 earnie-scan:
   stage: $[[ inputs.stage ]]
   image:
-    name: ghcr.io/scanoss/earnie-cli:0.10.0
+    name: ghcr.io/scanoss/earnie-cli:0.11.0
     entrypoint: [""]
   # earnie scan ci diffs against the merge request's base, which a shallow
   # clone may not hold.

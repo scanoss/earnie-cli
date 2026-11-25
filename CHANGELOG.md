@@ -6,6 +6,29 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-25
+
+### Added
+
+- `earnie auth login --sso --device` signs you in on a machine with no browser (a CI runner, an
+  SSH session, a container): the CLI prints a URL and an 8-character code, you open the URL on
+  any device, sign in, type the code and allow, and the CLI stores the same self-renewing sign-in
+  as the browser flow. `--sso` does this on its own when it cannot open a browser (no `DISPLAY` or
+  `WAYLAND_DISPLAY` on Linux, an SSH session, or a browser that fails to start). The code expires
+  in 10 minutes; a denial exits 4 and an expired code exits 7. Needs a server that offers the
+  device grant; on an older one, `--sso` without a browser prints the sign-in URL instead.
+- The CLI now registers its SSO client for both sign-ins. A sign-in reusing a client registered
+  by 0.10.0 registers once more the first time it signs in with a code.
+
+### Changed
+
+- When a deployment offers no SSO sign-in, `earnie auth login --sso` and `earnie mcp setup` now say
+  that an Admin turns it on in Settings > Single sign-on: it is an organization setting, no longer
+  an environment variable of the server.
+- A command whose SSO sign-in has ended, was revoked, or whose deployment turned sign-in off now
+  exits 4 with `sso_sign_in_ended` and says to run `earnie auth login --sso` (or where an Admin
+  turns sign-in on), instead of a bare `HTTP 401 invalid_token`.
+
 ## [0.10.0] - 2026-11-24
 
 ### Added
