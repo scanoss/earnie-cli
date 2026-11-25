@@ -6,6 +6,48 @@ its release notes.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-24
+
+### Added
+
+- `earnie auth login --sso` signs you in through your organization's SSO in the browser, with no
+  API key: the CLI registers itself with Earnie (once: a later sign-in within 25 days reuses that registration and skips the consent page), opens the browser (`--no-browser` prints the
+  URL instead), and stores a sign-in that renews itself, in every command and in the MCP review
+  hooks, until it ends after 7 days or is revoked. `EARNIE_API_KEY` still wins over it, and a key
+  login replaces it. Needs a server with MCP sign-in enabled (`MCP_OAUTH_ENABLED`) that accepts
+  the CLI's sign-in on the REST API.
+- `earnie auth logout` forgets the sign-in or the API key stored for the API URL.
+- `earnie mcp setup` writes Claude Code, Cursor, VS Code and Codex without an `Authorization`
+  header when the deployment offers MCP sign-in, so each client signs you in through SSO itself.
+  `--api-key` writes the stored key as before. `earnie mcp doctor` reports such an entry as
+  signing in through SSO, and `earnie auth login` with a key no longer writes the key into it.
+- `earnie export --package everything` writes every file of the scan as one ZIP: CycloneDX
+  and SPDX, both VEX documents, SARIF, the CRA SBOM annex, the export-control report, the
+  notice file and the Compliance report as HTML, PDF, CSV and XLSX, each as far as your
+  modules allow, with a `README.txt` that lists the files and what was left out. Needs a server
+  that offers the `everything` package (`earnie packages` lists it).
+- Reports downloaded with `earnie export` (`report-csv`, `report-xlsx`, `report-html`,
+  `report-pdf`) carry a Files table when the server has it: one row per matched file per
+  component, with its match type, matched percentage, lines and matched open source file. The
+  server builds the report, so the current CLI already receives it; only the generated
+  client's format descriptions changed.
+- `earnie findings note add <finding-id> --text "..."` adds an analysis note to a finding, and
+  `earnie findings note list <finding-id>` lists them, newest first. A note is free text of 1 to
+  4000 characters that changes nothing about the finding and stays with it across rescans. Each
+  `add` sends a fresh request id; repeat it with `--request-id` and the same text after a lost
+  answer and the note is not added twice. `--format json` prints a `finding_note_add` or
+  `finding_notes` document. `add` needs the `findings:write` permission and `list` `findings:read`.
+  They need a server that has the notes routes.
+- `earnie findings show` prints a finding's notes, and its `--format json` document gains
+  `finding_notes` when the finding has some.
+- `earnie findings export --file-format csv` gains a last column, `latest_note`, with the newest
+  note's text. The earlier columns keep their place.
+
+### Changed
+
+- Dependency updates: bubbletea 2.1.2, lipgloss 2.1.1, sjson 1.2.11, gjson 1.20.5, yaml 3.0.6,
+  and a newer `golang:1.27.4-alpine` base image for the CLI container. No behaviour change.
+
 ## [0.9.0] - 2026-11-23
 
 ### Added
